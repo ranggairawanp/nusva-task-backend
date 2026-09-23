@@ -118,13 +118,20 @@ langsung di database (transaksi yang di-rollback, memakai identitas Rina):
 audit_log dengan benar, `raise_blocker`/`resolve_blocker` memindahkan
 status Work Item dengan benar, dan panggilan lintas-pemilik yang tidak sah
 ditolak. Sekarang juga terhubung dari `nusvapeople-task` sungguhan: layar
-Pekerjaan Saya (workspace karyawan) login lewat `sb.auth.signInWithPassword`
-memakai salah satu dari 4 akun demo di atas, lalu membaca/menulis lewat jalur
-di atas. Diverifikasi lewat Playwright memakai client Supabase tiruan yang
-meniru data seed asli (sandbox pengujian sesi ini memblokir akses jaringan
-keluar ke CDN maupun ke project Supabase secara langsung), jadi verifikasi
-sungguhan di internet nyata (situs Vercel atau mesin lokal) masih perlu
-dilakukan. Layar lain (Board Tim, Kalender, Progres, Review, Dashboard
+Pekerjaan Saya (workspace karyawan) dan Board Tim (workspace manajer, seluruh
+task tim tanpa filter pemilik) login lewat `sb.auth.signInWithPassword`
+memakai salah satu dari 4 akun demo di atas, satu sesi menghidupkan
+keduanya, lalu membaca/menulis lewat jalur di atas. Board Tim membuktikan
+batas otorisasi lintas-pemilik: percobaan `complete_work_item` atau tulis
+`checklist_items` pada task orang lain benar-benar ditolak, bukan cuma
+disembunyikan di UI (`checklist_items` di-RLS sehingga update yang tidak sah
+diam-diam diabaikan tanpa error, jadi frontend memuat ulang dan memeriksa
+dulu sebelum mempercayai perubahan lokal). Diverifikasi lewat Playwright
+memakai client Supabase tiruan dengan dua worker (Rina dan Dedi) untuk
+menguji batas itu, karena sandbox pengujian sesi ini memblokir akses
+jaringan keluar ke CDN maupun ke project Supabase secara langsung; jadi
+verifikasi sungguhan di internet nyata (situs Vercel atau mesin lokal)
+masih perlu dilakukan. Layar lain (Kalender, Progres, Review, Dashboard
 organisasi) masih memakai `data.js` statis, belum tersambung.
 
 Setiap insert/update/delete pada work_items, priorities, drivers,
@@ -140,6 +147,6 @@ Evidence multi-tipe, audit trail, concurrency (optimistic locking), API
 lewat PostgREST + RPC.
 
 Di luar cakupan: Nexa AI asli, notifikasi, redesain UI frontend, koneksi live
-untuk layar selain Pekerjaan Saya (Board Tim, Kalender, Progres, Review,
+untuk layar selain Pekerjaan Saya dan Board Tim (Kalender, Progres, Review,
 Dashboard organisasi), menambah Work Item baru dari frontend (belum ada RPC
 untuk itu).
