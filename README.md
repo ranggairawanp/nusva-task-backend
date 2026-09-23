@@ -31,6 +31,8 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 | `007_harden_functions_v2.sql` | Cabut grant PUBLIC implisit, hanya `authenticated` yang boleh panggil helper |
 | `008_bilingual_and_provenance_fields.sql` | Kolom dwibahasa (jsonb) untuk statement/title/hypothesis/unit/name, provenance pada Business Outcome |
 | `009_seed_pt_abc_fb_company.sql` | Seed data PT ABC F&B Company diadopsi dari prototipe `data.js` (Decision D-3) |
+| `010_work_item_actions_and_audit_trail.sql` | RPC `complete_work_item`/`raise_blocker`/`resolve_blocker`, policy tulis untuk checklist_items dan evidence, trigger audit_log generik |
+| `011_harden_work_item_actions.sql` | Cabut akses anon ke tiga RPC di atas (linter keamanan) |
 
 Semua migration ini sudah diterapkan langsung ke project Supabase yang aktif
 lewat MCP tool `apply_migration`. File di sini adalah salinan sumber kebenaran
@@ -59,12 +61,75 @@ supabase db push
   pembuka `009_seed_pt_abc_fb_company.sql`, termasuk daftar hal yang
   disintesis (bukan dari data.js) seperti nama lengkap legal entity dan
   satu akun manajer.
-- Belum ada API layer (REST/GraphQL/Edge Functions) di atas skema ini
+- API layer sudah ada, lewat Supabase langsung (lihat bagian API di bawah)
+
+## API
+
+Tidak ada server terpisah. API-nya adalah Supabase itu sendiri, dua lapis:
+
+**1. REST otomatis (PostgREST), untuk baca dan edit satu tabel**
+
+Setiap tabel domain sudah terbuka lewat REST bawaan Supabase, dibatasi RLS
+per tenant/role, contoh:
+
+```
+GET  /rest/v1/work_items?select=*,drivers(title)&status=eq.READY
+PATCH /rest/v1/checklist_items?id=eq.<id>          { "done": true }
+```
+
+Base URL dan publishable key:
+
+```
+Project URL      : https://qfvvijwieqcazmovowiq.supabase.co
+Publishable key  : sb_publishable_1enn_7PLmYTbH0z8e_Qg6Q_toklYicY
+```
+
+(Publishable/anon key ini aman ditaruh di client; setiap baris tetap
+disaring lewat RLS berdasarkan identitas pengguna yang login, bukan lewat
+key ini.)
+
+**2. RPC (Postgres function), untuk aksi yang menyentuh lebih dari satu tabel**
+
+RLS saja tidak cukup untuk aksi yang menurut CLAUDE.md harus "senyap di
+belakang layar": tandai tugas selesai harus ikut menulis Evidence dan,
+kalau tugas itu terhubung ke Driver, menambah `actual`-nya, sebagai satu
+transaksi. Karena itu `drivers` sengaja tidak punya policy tulis sama
+sekali; satu-satunya jalan `actual` berubah adalah lewat fungsi ini.
+
+| Fungsi | Efek |
+| --- | --- |
+| `complete_work_item(p_work_item_id)` | Work Item -> DONE, tulis Evidence (SYSTEM_EVENT), tambah `drivers.actual` kalau item itu terhubung ke Driver |
+| `raise_blocker(p_work_item_id, p_reason)` | Work Item -> BLOCKED, buat baris Blocker (OPEN) |
+| `resolve_blocker(p_blocker_id)` | Blocker -> RESOLVED; kalau itu Blocker terbuka terakhir untuk Work Item-nya, Work Item kembali ke READY |
+
+Dipanggil lewat PostgREST juga, sebagai POST biasa:
+
+```
+POST /rest/v1/rpc/complete_work_item   { "p_work_item_id": "<uuid>" }
+```
+
+Ketiganya `SECURITY DEFINER` (perlu, supaya bisa menulis ke drivers/evidence
+yang memang tidak boleh ditulis langsung oleh client), jadi otorisasi
+dicek manual di dalam fungsi meniru aturan `work_items_write` (pemilik,
+atau manager/executive/hc_admin), bukan mengandalkan RLS. Sudah diuji
+langsung di database (transaksi yang di-rollback, memakai identitas Rina):
+`complete_work_item` menambah `drivers.actual` dan menulis Evidence serta
+audit_log dengan benar, `raise_blocker`/`resolve_blocker` memindahkan
+status Work Item dengan benar, dan panggilan lintas-pemilik yang tidak sah
+ditolak. Belum diuji dari frontend sungguhan karena `nusvapeople-task`
+belum terhubung ke backend ini.
+
+Setiap insert/update/delete pada work_items, priorities, drivers,
+checklist_items, blockers, dan business_outcomes sekarang otomatis tercatat
+di `audit_log` (aktor, before/after) lewat trigger generik, tanpa perlu
+kode tambahan di RPC manapun.
 
 ## Cakupan Phase 1 (lihat dokumen desain untuk detail)
 
 Termasuk: model tenant, otorisasi RLS, skema Work Item kanonik, Priority/
 Driver/Commitment/Initiative sebagai objek nyata, Dependency/Blocker,
-Evidence multi-tipe, audit trail, concurrency (optimistic locking).
+Evidence multi-tipe, audit trail, concurrency (optimistic locking), API
+lewat PostgREST + RPC.
 
-Di luar cakupan: Nexa AI asli, notifikasi, redesain UI frontend.
+Di luar cakupan: Nexa AI asli, notifikasi, redesain UI frontend, koneksi
+nyata dari `nusvapeople-task` ke backend ini.
