@@ -29,6 +29,8 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 | `005_authorization_and_rls.sql` | Helper tenant/worker/role, Row Level Security di semua tabel |
 | `006_harden_functions.sql` | Pin `search_path`, cabut akses anon ke fungsi helper |
 | `007_harden_functions_v2.sql` | Cabut grant PUBLIC implisit, hanya `authenticated` yang boleh panggil helper |
+| `008_bilingual_and_provenance_fields.sql` | Kolom dwibahasa (jsonb) untuk statement/title/hypothesis/unit/name, provenance pada Business Outcome |
+| `009_seed_pt_abc_fb_company.sql` | Seed data PT ABC F&B Company diadopsi dari prototipe `data.js` (Decision D-3) |
 
 Semua migration ini sudah diterapkan langsung ke project Supabase yang aktif
 lewat MCP tool `apply_migration`. File di sini adalah salinan sumber kebenaran
@@ -47,8 +49,16 @@ supabase db push
   helper `current_tenant_id()`/`current_worker_id()`/`current_worker_role()`
   memang boleh dipanggil user login, karena cuma mengembalikan data milik
   pemanggil sendiri)
-- Belum ada data seed (0 baris di semua tabel) — menunggu Decision D-3
-  (seed dari data.js prototipe vs data baru)
+- Data seed sudah masuk (Decision D-3): 1 tenant (PT ABC F&B Company), 5 legal
+  entity, 8 business unit, 1 team (Outlet Dago), 4 worker (Rina, Dedi, Sari,
+  1 manajer), 2 Priority, 5 Driver, 10 Work Item, 8 checklist item, 1 blocker.
+  Konten narasi diadopsi dari `data.js`; relasi dibangun ulang lewat FK asli,
+  bukan string-matching seperti prototipe. Yang sengaja tidak diadopsi:
+  array `sl` di halaman Fairness, `state.attain`, `state.okrs` (dead code),
+  `state.initiatives` (tanpa data owner). Detail lengkap ada di komentar
+  pembuka `009_seed_pt_abc_fb_company.sql`, termasuk daftar hal yang
+  disintesis (bukan dari data.js) seperti nama lengkap legal entity dan
+  satu akun manajer.
 - Belum ada API layer (REST/GraphQL/Edge Functions) di atas skema ini
 
 ## Cakupan Phase 1 (lihat dokumen desain untuk detail)
