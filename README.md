@@ -33,6 +33,7 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 | `009_seed_pt_abc_fb_company.sql` | Seed data PT ABC F&B Company diadopsi dari prototipe `data.js` (Decision D-3) |
 | `010_work_item_actions_and_audit_trail.sql` | RPC `complete_work_item`/`raise_blocker`/`resolve_blocker`, policy tulis untuk checklist_items dan evidence, trigger audit_log generik |
 | `011_harden_work_item_actions.sql` | Cabut akses anon ke tiga RPC di atas (linter keamanan) |
+| `012_reanchor_due_dates_to_present.sql` | Geser `due_at` Work Item seed dari TODAY_ISO fiktif data.js ke tanggal nyata, supaya koneksi live ke frontend bisa didemokan |
 
 Semua migration ini sudah diterapkan langsung ke project Supabase yang aktif
 lewat MCP tool `apply_migration`. File di sini adalah salinan sumber kebenaran
@@ -116,8 +117,15 @@ langsung di database (transaksi yang di-rollback, memakai identitas Rina):
 `complete_work_item` menambah `drivers.actual` dan menulis Evidence serta
 audit_log dengan benar, `raise_blocker`/`resolve_blocker` memindahkan
 status Work Item dengan benar, dan panggilan lintas-pemilik yang tidak sah
-ditolak. Belum diuji dari frontend sungguhan karena `nusvapeople-task`
-belum terhubung ke backend ini.
+ditolak. Sekarang juga terhubung dari `nusvapeople-task` sungguhan: layar
+Pekerjaan Saya (workspace karyawan) login lewat `sb.auth.signInWithPassword`
+memakai salah satu dari 4 akun demo di atas, lalu membaca/menulis lewat jalur
+di atas. Diverifikasi lewat Playwright memakai client Supabase tiruan yang
+meniru data seed asli (sandbox pengujian sesi ini memblokir akses jaringan
+keluar ke CDN maupun ke project Supabase secara langsung), jadi verifikasi
+sungguhan di internet nyata (situs Vercel atau mesin lokal) masih perlu
+dilakukan. Layar lain (Board Tim, Kalender, Progres, Review, Dashboard
+organisasi) masih memakai `data.js` statis, belum tersambung.
 
 Setiap insert/update/delete pada work_items, priorities, drivers,
 checklist_items, blockers, dan business_outcomes sekarang otomatis tercatat
@@ -131,5 +139,7 @@ Driver/Commitment/Initiative sebagai objek nyata, Dependency/Blocker,
 Evidence multi-tipe, audit trail, concurrency (optimistic locking), API
 lewat PostgREST + RPC.
 
-Di luar cakupan: Nexa AI asli, notifikasi, redesain UI frontend, koneksi
-nyata dari `nusvapeople-task` ke backend ini.
+Di luar cakupan: Nexa AI asli, notifikasi, redesain UI frontend, koneksi live
+untuk layar selain Pekerjaan Saya (Board Tim, Kalender, Progres, Review,
+Dashboard organisasi), menambah Work Item baru dari frontend (belum ada RPC
+untuk itu).
