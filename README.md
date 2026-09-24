@@ -34,6 +34,7 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 | `010_work_item_actions_and_audit_trail.sql` | RPC `complete_work_item`/`raise_blocker`/`resolve_blocker`, policy tulis untuk checklist_items dan evidence, trigger audit_log generik |
 | `011_harden_work_item_actions.sql` | Cabut akses anon ke tiga RPC di atas (linter keamanan) |
 | `012_reanchor_due_dates_to_present.sql` | Geser `due_at` Work Item seed dari TODAY_ISO fiktif data.js ke tanggal nyata, supaya koneksi live ke frontend bisa didemokan |
+| `013_seed_executive_and_hc_demo_accounts.sql` | Tambah 2 akun demo untuk role `executive` dan `hc_admin`, supaya keempat persona di frontend (karyawan, manajer, eksekutif, HC) punya akun untuk login setelah gerbang login pindah ke depan seluruh aplikasi |
 
 Semua migration ini sudah diterapkan langsung ke project Supabase yang aktif
 lewat MCP tool `apply_migration`. File di sini adalah salinan sumber kebenaran
@@ -62,6 +63,12 @@ supabase db push
   pembuka `009_seed_pt_abc_fb_company.sql`, termasuk daftar hal yang
   disintesis (bukan dari data.js) seperti nama lengkap legal entity dan
   satu akun manajer.
+- Migration 013 menambah 2 worker lagi, role `executive` dan `hc_admin`,
+  tanpa `team_id`/`position_id` (dua role ini memang tenant-wide di RLS,
+  bukan milik satu tim). Nama lengkapnya ("Eksekutif ABC F&B Company", "HC
+  ABC F&B Company") disintesis, bukan dari data.js, karena data.js tidak
+  punya satu pun tokoh eksekutif atau HC bernama. Total sekarang 6 worker,
+  6 akun demo.
 - API layer sudah ada, lewat Supabase langsung (lihat bagian API di bawah)
 
 ## API
@@ -120,8 +127,13 @@ status Work Item dengan benar, dan panggilan lintas-pemilik yang tidak sah
 ditolak. Sekarang juga terhubung dari `nusvapeople-task` sungguhan: layar
 Pekerjaan Saya (workspace karyawan) dan Board Tim (workspace manajer, seluruh
 task tim tanpa filter pemilik) login lewat `sb.auth.signInWithPassword`
-memakai salah satu dari 4 akun demo di atas, satu sesi menghidupkan
-keduanya, lalu membaca/menulis lewat jalur di atas. Board Tim membuktikan
+memakai salah satu dari 6 akun demo di atas, satu sesi menghidupkan
+keduanya, lalu membaca/menulis lewat jalur di atas. Seluruh frontend
+sekarang digembok login di depan (bukan cuma dua rute itu); persona
+Eksekutif dan HC ikut login memakai akun `executive`/`hc_admin` di atas,
+tapi layar mereka (Beranda, Progres, Risiko, dst.) tetap membaca `data.js`
+statis, login di situ murni penentu identitas dan persona awal, belum jadi
+koneksi data live. Board Tim membuktikan
 batas otorisasi lintas-pemilik: percobaan `complete_work_item` atau tulis
 `checklist_items` pada task orang lain benar-benar ditolak, bukan cuma
 disembunyikan di UI (`checklist_items` di-RLS sehingga update yang tidak sah
