@@ -35,6 +35,7 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 | `011_harden_work_item_actions.sql` | Cabut akses anon ke tiga RPC di atas (linter keamanan) |
 | `012_reanchor_due_dates_to_present.sql` | Geser `due_at` Work Item seed dari TODAY_ISO fiktif data.js ke tanggal nyata, supaya koneksi live ke frontend bisa didemokan |
 | `013_seed_executive_and_hc_demo_accounts.sql` | Tambah 2 akun demo untuk role `executive` dan `hc_admin`, supaya keempat persona di frontend (karyawan, manajer, eksekutif, HC) punya akun untuk login setelah gerbang login pindah ke depan seluruh aplikasi |
+| `014_create_work_item_rpc.sql` | RPC `create_work_item`, supaya tombol tambah pekerjaan (quick add) di Pekerjaan Saya/Board Tim bisa dipakai di mode nyata |
 
 Semua migration ini sudah diterapkan langsung ke project Supabase yang aktif
 lewat MCP tool `apply_migration`. File di sini adalah salinan sumber kebenaran
@@ -109,6 +110,7 @@ sekali; satu-satunya jalan `actual` berubah adalah lewat fungsi ini.
 | `complete_work_item(p_work_item_id)` | Work Item -> DONE, tulis Evidence (SYSTEM_EVENT), tambah `drivers.actual` kalau item itu terhubung ke Driver |
 | `raise_blocker(p_work_item_id, p_reason)` | Work Item -> BLOCKED, buat baris Blocker (OPEN) |
 | `resolve_blocker(p_blocker_id)` | Blocker -> RESOLVED; kalau itu Blocker terbuka terakhir untuk Work Item-nya, Work Item kembali ke READY |
+| `create_work_item(p_title_id, p_title_en, p_due_at, p_priority_level, p_owner_id)` | Buat Work Item baru, type TASK, status READY, tanpa `priority_id`/`driver_id` (quick add cuma pernah buat pekerjaan rutin, bukan pekerjaan prioritas, di prototipe statis juga begitu). `team_id`/`creator_id` diturunkan di server, bukan dari client |
 
 Dipanggil lewat PostgREST juga, sebagai POST biasa:
 
@@ -116,15 +118,24 @@ Dipanggil lewat PostgREST juga, sebagai POST biasa:
 POST /rest/v1/rpc/complete_work_item   { "p_work_item_id": "<uuid>" }
 ```
 
-Ketiganya `SECURITY DEFINER` (perlu, supaya bisa menulis ke drivers/evidence
-yang memang tidak boleh ditulis langsung oleh client), jadi otorisasi
-dicek manual di dalam fungsi meniru aturan `work_items_write` (pemilik,
-atau manager/executive/hc_admin), bukan mengandalkan RLS. Sudah diuji
-langsung di database (transaksi yang di-rollback, memakai identitas Rina):
-`complete_work_item` menambah `drivers.actual` dan menulis Evidence serta
-audit_log dengan benar, `raise_blocker`/`resolve_blocker` memindahkan
-status Work Item dengan benar, dan panggilan lintas-pemilik yang tidak sah
-ditolak. Sekarang juga terhubung dari `nusvapeople-task` sungguhan: layar
+Keempatnya `SECURITY DEFINER`. Untuk `complete_work_item`/`raise_blocker`/
+`resolve_blocker` itu perlu karena mereka menulis ke drivers/evidence yang
+memang tidak boleh ditulis langsung oleh client. `create_work_item` beda
+alasannya: `work_items_write` sebenarnya sudah mengizinkan INSERT langsung
+lewat RLS, tapi `with check`-nya cuma memvalidasi `owner_id`, bukan
+`creator_id`, jadi lewat POST langsung `creator_id` bisa diisi apa saja
+oleh client; `team_id` juga harus benar padahal client tidak punya cara sah
+untuk membacanya. Jadi `create_work_item` menurunkan `creator_id`/`team_id`
+di server dari identitas pemanggil, pola yang sama dengan tiga RPC lain.
+Semuanya cek otorisasi manual di dalam fungsi meniru aturan
+`work_items_write` (pemilik, atau manager/executive/hc_admin), bukan
+mengandalkan RLS. Sudah diuji langsung di database (transaksi yang
+di-rollback): `complete_work_item` menambah `drivers.actual` dan menulis
+Evidence serta audit_log dengan benar, `raise_blocker`/`resolve_blocker`
+memindahkan status Work Item dengan benar, `create_work_item` membiarkan
+Rina membuat tugas untuk dirinya sendiri dan manajer menugaskan ke Rina,
+tapi menolak Dedi (karyawan) menugaskan ke Rina, judul kosong, dan
+panggilan tanpa login. Sekarang juga terhubung dari `nusvapeople-task` sungguhan: layar
 Pekerjaan Saya (workspace karyawan) dan Board Tim (workspace manajer, seluruh
 task tim tanpa filter pemilik) login lewat `sb.auth.signInWithPassword`
 memakai salah satu dari 6 akun demo di atas, satu sesi menghidupkan
@@ -160,5 +171,4 @@ lewat PostgREST + RPC.
 
 Di luar cakupan: Nexa AI asli, notifikasi, redesain UI frontend, koneksi live
 untuk layar selain Pekerjaan Saya dan Board Tim (Kalender, Progres, Review,
-Dashboard organisasi), menambah Work Item baru dari frontend (belum ada RPC
-untuk itu).
+Dashboard organisasi).
