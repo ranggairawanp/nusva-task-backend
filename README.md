@@ -36,6 +36,13 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 | `012_reanchor_due_dates_to_present.sql` | Geser `due_at` Work Item seed dari TODAY_ISO fiktif data.js ke tanggal nyata, supaya koneksi live ke frontend bisa didemokan |
 | `013_seed_executive_and_hc_demo_accounts.sql` | Tambah 2 akun demo untuk role `executive` dan `hc_admin`, supaya keempat persona di frontend (karyawan, manajer, eksekutif, HC) punya akun untuk login setelah gerbang login pindah ke depan seluruh aplikasi |
 | `014_create_work_item_rpc.sql` | RPC `create_work_item`, supaya tombol tambah pekerjaan (quick add) di Pekerjaan Saya/Board Tim bisa dipakai di mode nyata |
+| `015_company_profile_and_worker_write_policies.sql` | Policy UPDATE untuk tenants/organizations/legal_entities/business_units, UPDATE+INSERT untuk teams/positions, dan UPDATE untuk workers, supaya profil perusahaan tidak lagi cuma bisa dibaca. Manager terbatas ke tim sendiri; tenant-wide dan perubahan role worker khusus executive/hc_admin |
+
+Selain migration di atas, ada satu Edge Function (lihat bagian API di bawah):
+
+```
+supabase/functions/create_team_member/index.ts
+```
 
 Semua migration ini sudah diterapkan langsung ke project Supabase yang aktif
 lewat MCP tool `apply_migration`. File di sini adalah salinan sumber kebenaran
@@ -71,6 +78,11 @@ supabase db push
   punya satu pun tokoh eksekutif atau HC bernama. Total sekarang 6 worker,
   6 akun demo.
 - API layer sudah ada, lewat Supabase langsung (lihat bagian API di bawah)
+- Migration 015 membuka profil perusahaan (tenant/organization/legal_entity/
+  business_unit/team/position) dan data worker untuk ditulis dari aplikasi,
+  bukan cuma dibaca. Edge Function `create_team_member` menambah anggota tim
+  baru (akun login sungguhan + baris worker) tanpa perlu akses dashboard
+  Supabase
 
 ## API
 
@@ -162,6 +174,44 @@ checklist_items, blockers, dan business_outcomes sekarang otomatis tercatat
 di `audit_log` (aktor, before/after) lewat trigger generik, tanpa perlu
 kode tambahan di RPC manapun.
 
+**3. Edge Function, untuk aksi yang butuh hak admin (service role)**
+
+RLS dan RPC biasa jalan sebagai identitas caller yang login; tidak ada
+keduanya yang boleh membuat akun Supabase Auth baru, karena itu butuh
+service role key yang tidak boleh menyentuh browser. Satu-satunya jalan
+resminya adalah Edge Function, yang jalan di server Supabase dan baru
+memakai service role key setelah memvalidasi identitas dan peran pemanggil
+lewat client ber-anon-key biasa (RLS tetap berlaku di langkah itu).
+
+| Fungsi | Efek |
+| --- | --- |
+| `create_team_member` | Membuat akun Supabase Auth (`email` + kata sandi acak sekali pakai) dan baris `workers` baru dalam satu langkah. `manager` cuma boleh menambah role `employee` ke tim sendiri (team_id diturunkan otomatis dari worker pemanggil kalau tidak dikirim); `executive`/`hc_admin` boleh peran apa saja, tenant-wide. `tenant_id` selalu diturunkan dari worker pemanggil, tidak pernah dari input client. Kalau insert ke `workers` gagal setelah akun Auth terlanjur dibuat, akun itu dihapus lagi supaya tidak ada login yatim tanpa baris worker |
+
+Dipanggil lewat `supabase-js`:
+
+```js
+const { data, error } = await sb.functions.invoke('create_team_member', {
+  body: { full_name, email, role, team_id },
+});
+// data => { worker, email, temp_password }
+```
+
+Tidak ada infrastruktur email di Phase 1 ini, jadi `temp_password` dikembalikan
+apa adanya ke pemanggil (manager/HC) supaya bisa dibagikan manual ke anggota
+tim baru, pola yang sama dengan akun demo di atas. Otorisasi diuji manual
+lewat pembacaan kode (bukan panggilan HTTP langsung): sandbox pengembangan
+sesi ini tidak bisa memanggil Edge Function secara langsung (tidak ada akses
+jaringan keluar), jadi verifikasi end-to-end sungguhan (lewat situs Vercel
+atau mesin dengan akses internet) masih perlu dilakukan. Policy tulis RLS
+untuk tabel profil perusahaan (migration 015) sudah diuji langsung di
+database lewat transaksi yang di-rollback: manager berhasil mengubah nama
+tim sendiri tapi ditolak saat mencoba mengubah nama tenant atau membuat tim
+baru; executive/hc_admin berhasil di keduanya; karyawan ditolak di semuanya,
+termasuk mengubah worker manapun (perubahan role/tim worker sengaja dibatasi
+executive/hc_admin saja, karena RLS bekerja per-baris bukan per-kolom,
+sehingga policy yang mengizinkan manager mengubah "worker di tim sendiri"
+juga akan mengizinkan manager menaikkan peran anak buahnya sendiri).
+
 ## Cakupan Phase 1 (lihat dokumen desain untuk detail)
 
 Termasuk: model tenant, otorisasi RLS, skema Work Item kanonik, Priority/
@@ -169,6 +219,12 @@ Driver/Commitment/Initiative sebagai objek nyata, Dependency/Blocker,
 Evidence multi-tipe, audit trail, concurrency (optimistic locking), API
 lewat PostgREST + RPC.
 
+Ditambahkan di luar rencana Phase 1 awal, atas permintaan langsung: profil
+perusahaan (tenant/organization/legal_entity/business_unit/team/position)
+dan penambahan anggota tim (akun login sungguhan) bisa ditulis dari
+aplikasi, bukan cuma dibaca dari seed data.
+
 Di luar cakupan: Nexa AI asli, notifikasi, redesain UI frontend, koneksi live
-untuk layar selain Pekerjaan Saya dan Board Tim (Kalender, Progres, Review,
+untuk layar selain Pekerjaan Saya, Board Tim, dan profil perusahaan/anggota
+tim (Kalender masih memakai `data.js` untuk sisi Progres/Prioritas, Review,
 Dashboard organisasi).
