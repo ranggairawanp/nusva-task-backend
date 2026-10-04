@@ -37,6 +37,21 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 | `013_seed_executive_and_hc_demo_accounts.sql` | Tambah 2 akun demo untuk role `executive` dan `hc_admin`, supaya keempat persona di frontend (karyawan, manajer, eksekutif, HC) punya akun untuk login setelah gerbang login pindah ke depan seluruh aplikasi |
 | `014_create_work_item_rpc.sql` | RPC `create_work_item`, supaya tombol tambah pekerjaan (quick add) di Pekerjaan Saya/Board Tim bisa dipakai di mode nyata |
 | `015_company_profile_and_worker_write_policies.sql` | Policy UPDATE untuk tenants/organizations/legal_entities/business_units, UPDATE+INSERT untuk teams/positions, dan UPDATE untuk workers, supaya profil perusahaan tidak lagi cuma bisa dibaca. Manager terbatas ke tim sendiri; tenant-wide dan perubahan role worker khusus executive/hc_admin |
+| `016_shifts_routines_and_handover.sql` | Tugas rutin per shift dan serah terima: tabel `shifts` dan `shift_handovers`, `recurring_templates` dihidupkan (title jsonb, `days_of_week` ISO 1-7 menggantikan `rrule`, shift, penanggung jawab, checklist), kolom `shift_id`/`occurrence_date` di `work_items` dengan unique index (template_id, occurrence_date). RPC `generate_routine_work` (idempoten, membuat instance hari ini, rentang kemarin sampai besok), `create_routine_template`, `set_routine_template_active`, `submit_shift_handover`. Zona waktu Asia/Jakarta |
+| `017_seed_outlet_dago_shifts_and_routines.sql` | Seed Outlet Dago: shift Pagi 07.00-15.00 dan Sore 15.00-23.00, lima template rutin, satu catatan serah terima dari shift sore kemarin |
+
+**Status 016 dan 017:** sudah diuji dengan memutar ulang migration 001 sampai 017 di
+Postgres 16 lokal (dengan stub `auth.users`/`auth.uid()`), termasuk uji RPC dan RLS per
+peran. **Sudah diterapkan ke project Supabase aktif** (4 Oktober 2026), lalu diverifikasi
+dengan sesi `authenticated` simulasi: `generate_routine_work` membuat instance hari ini dan
+idempoten di panggilan kedua, karyawan ditolak saat membuat template, `submit_shift_handover`
+mencatat penulis dari pemanggil. Versi 016 yang diterapkan tidak memakai `DROP COLUMN`
+(kolom `rrule` dibiarkan nullable) supaya tidak tertahan konfirmasi statement destruktif. Frontend mendeteksi sendiri apakah 016 sudah
+ada (lewat `generate_routine_work`) dan menyembunyikan fitur rutin kalau belum, jadi urutan
+deploy frontend dan backend tidak saling bergantung.
+
+Zona waktu `Asia/Jakarta` ditulis di fungsi 016 karena satu-satunya tenant ada di Bandung.
+Kalau ada tenant di zona lain, pindahkan zona ke kolom `tenants`.
 
 Selain migration di atas, ada satu Edge Function (lihat bagian API di bawah):
 
