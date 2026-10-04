@@ -14,6 +14,7 @@
 --    sebagai pengganti rrule. Pola rutin outlet cukup "setiap hari" atau
 --    "hari tertentu", dan days_of_week bisa divalidasi serta dibaca langsung
 --    di SQL tanpa parser RFC 5545. Tabel ini masih kosong, jadi aman diubah.
+--    Kolom rrule dibiarkan (nullable, tidak dipakai).
 --    title ikut jadi jsonb dwibahasa seperti work_items sejak 008.
 -- 3. Instance harian dibuat malas (lazy) oleh RPC generate_routine_work(),
 --    yang dipanggil frontend setiap memuat daftar tugas. Idempoten lewat
@@ -42,11 +43,14 @@ create table shifts (
 alter table shifts enable row level security;
 create policy tenant_isolation_select on shifts for select using (tenant_id = current_tenant_id());
 
--- 2. Template tugas rutin (tabel dari 002, masih kosong)
-alter table recurring_templates drop column title;
-alter table recurring_templates drop column rrule;
+-- 2. Template tugas rutin (tabel dari 002, masih kosong). title jadi jsonb dwibahasa;
+--    rrule tidak dipakai lagi (diganti days_of_week), dibiarkan tapi boleh kosong.
+--    Sengaja tanpa DROP COLUMN supaya migration tidak tertahan konfirmasi
+--    statement destruktif saat diterapkan lewat apply_migration.
+alter table recurring_templates alter column title type jsonb using jsonb_build_object('id', title, 'en', title);
+alter table recurring_templates alter column rrule drop not null;
+comment on column recurring_templates.rrule is 'Tidak dipakai sejak migration 016; jadwal memakai days_of_week.';
 alter table recurring_templates
-  add column title jsonb not null,
   add column shift_id uuid references shifts(id),
   add column days_of_week smallint[] not null default '{1,2,3,4,5,6,7}',
   add column owner_id uuid not null references workers(id),

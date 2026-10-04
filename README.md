@@ -42,8 +42,11 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 
 **Status 016 dan 017:** sudah diuji dengan memutar ulang migration 001 sampai 017 di
 Postgres 16 lokal (dengan stub `auth.users`/`auth.uid()`), termasuk uji RPC dan RLS per
-peran. **Belum diterapkan ke project Supabase aktif**; terapkan lewat `apply_migration`
-atau `supabase db push` setelah disetujui. Frontend mendeteksi sendiri apakah 016 sudah
+peran. **Sudah diterapkan ke project Supabase aktif** (4 Oktober 2026), lalu diverifikasi
+dengan sesi `authenticated` simulasi: `generate_routine_work` membuat instance hari ini dan
+idempoten di panggilan kedua, karyawan ditolak saat membuat template, `submit_shift_handover`
+mencatat penulis dari pemanggil. Versi 016 yang diterapkan tidak memakai `DROP COLUMN`
+(kolom `rrule` dibiarkan nullable) supaya tidak tertahan konfirmasi statement destruktif. Frontend mendeteksi sendiri apakah 016 sudah
 ada (lewat `generate_routine_work`) dan menyembunyikan fitur rutin kalau belum, jadi urutan
 deploy frontend dan backend tidak saling bergantung.
 
