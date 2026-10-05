@@ -41,6 +41,7 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 | `017_seed_outlet_dago_shifts_and_routines.sql` | Seed Outlet Dago: shift Pagi 07.00-15.00 dan Sore 15.00-23.00, lima template rutin, satu catatan serah terima dari shift sore kemarin |
 | `018_notification_reads.sql` | Status dibaca notifikasi per karyawan, sinkron antarperangkat: tabel `notification_reads` (kunci notifikasi dari frontend, tanpa isi notifikasi), policy SELECT hanya milik sendiri, RPC `mark_notifications_read(text[])` (maks. 200 kunci per panggilan, duplikat dan kunci kosong diabaikan) |
 | `019_priority_checkins.sql` | Weekly Check-in Prioritas Utama: tabel `priority_checkins` (satu baris per prioritas per minggu, `week_start` Senin Asia/Jakarta, angka hasil, keyakinan ON_TRACK/WATCH/OFF_TRACK, catatan maks. 500 karakter, penginput), policy SELECT seluas tenant, RPC `submit_priority_checkin` (manajer untuk tim sendiri, eksekutif/HC seluruh tenant; isian ulang di minggu yang sama memperbarui baris; sekaligus mengisi `business_outcomes.current_value/reported_by/reported_at` dan menurunkan `priorities.status`, ACHIEVED kalau target terlampaui) |
+| `020_sop_audit_photos.sql` | SOP dan audit outlet dengan foto: `recurring_templates.kind` (CHECKLIST/AUDIT), kolom `checklist_items.requires_photo/result/note/photo_path`, trigger penjaga item (flag foto tetap, temuan wajib catatan, foto di folder tugasnya), trigger syarat selesai (foto wajib dan penilaian audit lengkap, berlaku untuk semua jalur selesai), trigger tindak lanjut otomatis per temuan (HIGH, deadline besok 17.00 WIB, PIC manajer tim, `parent_work_id`), `generate_routine_work` membawa flag foto, RPC `create_routine_template_v2` dengan jenis, bucket privat `evidence-photos` (JPEG, maks. 2 MB) dengan policy upload pemilik tugas atau manajer+ dan baca seluas tenant. Seed: inspeksi higiene Outlet Dago jadi audit lima item, rekap kas sore mendapat foto slip setoran |
 
 **Status 016 dan 017:** sudah diuji dengan memutar ulang migration 001 sampai 017 di
 Postgres 16 lokal (dengan stub `auth.users`/`auth.uid()`), termasuk uji RPC dan RLS per
@@ -68,6 +69,15 @@ tidak valid ditolak, eksekutif bisa, status ACHIEVED terpasang saat target terla
 langsung dan anon ditolak. **Sudah diterapkan ke project Supabase aktif** dan diuji ulang di sana
 (sesi manajer dan Rina dalam transaksi yang di-rollback). Frontend mendeteksi sendiri: kalau
 `priority_checkins` tidak ada, Progres tetap live dan bagian Weekly Check-in disembunyikan.
+
+**Status 020:** diuji dengan memutar ulang 001 sampai 019 di Postgres 16 lokal (dengan skema
+`storage` tiruan), membuat instance hari ini, lalu menerapkan 020: selesai tanpa foto ditolak,
+temuan tanpa catatan ditolak, flag foto tidak bisa diubah, foto di folder lain ditolak, upload ke
+tugas orang lain dan tenant lain ditolak, audit yang belum lengkap ditolak, audit lengkap membuat
+tindak lanjut untuk manajer, tugas biasa tetap bisa diselesaikan seperti sebelumnya, v2 menolak
+karyawan, anon, jenis tidak valid, dan audit tanpa item. **Sudah diterapkan ke project Supabase
+aktif** dan alur penuh diuji ulang di sana dengan sesi Sari dalam transaksi yang di-rollback.
+Frontend mendeteksi sendiri: kalau kolom `requires_photo` tidak ada, checklist lama tetap dipakai.
 
 Zona waktu `Asia/Jakarta` ditulis di fungsi 016 karena satu-satunya tenant ada di Bandung.
 Kalau ada tenant di zona lain, pindahkan zona ke kolom `tenants`.
