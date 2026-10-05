@@ -42,6 +42,7 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 | `018_notification_reads.sql` | Status dibaca notifikasi per karyawan, sinkron antarperangkat: tabel `notification_reads` (kunci notifikasi dari frontend, tanpa isi notifikasi), policy SELECT hanya milik sendiri, RPC `mark_notifications_read(text[])` (maks. 200 kunci per panggilan, duplikat dan kunci kosong diabaikan) |
 | `019_priority_checkins.sql` | Weekly Check-in Prioritas Utama: tabel `priority_checkins` (satu baris per prioritas per minggu, `week_start` Senin Asia/Jakarta, angka hasil, keyakinan ON_TRACK/WATCH/OFF_TRACK, catatan maks. 500 karakter, penginput), policy SELECT seluas tenant, RPC `submit_priority_checkin` (manajer untuk tim sendiri, eksekutif/HC seluruh tenant; isian ulang di minggu yang sama memperbarui baris; sekaligus mengisi `business_outcomes.current_value/reported_by/reported_at` dan menurunkan `priorities.status`, ACHIEVED kalau target terlampaui) |
 | `020_sop_audit_photos.sql` | SOP dan audit outlet dengan foto: `recurring_templates.kind` (CHECKLIST/AUDIT), kolom `checklist_items.requires_photo/result/note/photo_path`, trigger penjaga item (flag foto tetap, temuan wajib catatan, foto di folder tugasnya), trigger syarat selesai (foto wajib dan penilaian audit lengkap, berlaku untuk semua jalur selesai), trigger tindak lanjut otomatis per temuan (HIGH, deadline besok 17.00 WIB, PIC manajer tim, `parent_work_id`), `generate_routine_work` membawa flag foto, RPC `create_routine_template_v2` dengan jenis, bucket privat `evidence-photos` (JPEG, maks. 2 MB) dengan policy upload pemilik tugas atau manajer+ dan baca seluas tenant. Seed: inspeksi higiene Outlet Dago jadi audit lima item, rekap kas sore mendapat foto slip setoran |
+| `021_comments_and_approval.sql` | Komentar, mention, dan persetujuan tugas: tabel `work_item_comments` (kind COMMENT/SUBMITTED/APPROVED/CHANGES_REQUESTED, mention uuid[] disaring ke tenant, maks. 10), kolom `work_items.requires_approval/approval_status/approved_by/approved_at`, trigger penjaga kolom persetujuan (hanya lewat RPC, DONE ditolak sebelum disetujui), `complete_work_item` dengan cabang persetujuan (WAITING/PENDING, cek foto dan audit yang sama), RPC `set_work_item_approval`, `review_work_item` (APPROVE: DONE, evidence APPROVAL, angka Action Plan bertambah di sini; REQUEST_CHANGES: wajib catatan, kembali IN_PROGRESS; PIC tidak bisa menyetujui tugasnya sendiri), dan `add_work_item_comment` (anggota tim tugas atau manajer+). Seed: rekap kas Rina wajib disetujui, latihan kasir Dedi menunggu persetujuan, satu utas komentar dengan mention |
 
 **Status 016 dan 017:** sudah diuji dengan memutar ulang migration 001 sampai 017 di
 Postgres 16 lokal (dengan stub `auth.users`/`auth.uid()`), termasuk uji RPC dan RLS per
@@ -78,6 +79,14 @@ tindak lanjut untuk manajer, tugas biasa tetap bisa diselesaikan seperti sebelum
 karyawan, anon, jenis tidak valid, dan audit tanpa item. **Sudah diterapkan ke project Supabase
 aktif** dan alur penuh diuji ulang di sana dengan sesi Sari dalam transaksi yang di-rollback.
 Frontend mendeteksi sendiri: kalau kolom `requires_photo` tidak ada, checklist lama tetap dipakai.
+
+**Status 021:** diuji dengan memutar ulang 001 sampai 021 di Postgres 16 lokal: PATCH langsung ke
+kolom persetujuan atau status DONE ditolak, kirim untuk persetujuan, kirim dua kali ditolak, PIC
+menyetujui sendiri ditolak, mention ke worker di luar tenant dibuang, komentar kosong dan insert
+langsung ditolak, revisi tanpa catatan ditolak, revisi lalu kirim ulang lalu disetujui, angka Action
+Plan baru bertambah saat disetujui, karyawan tidak bisa mengatur persetujuan, tugas biasa tetap
+selesai normal, anon ditolak. **Sudah diterapkan ke project Supabase aktif** dan alurnya diuji ulang
+di sana dengan sesi Rina dan manajer dalam transaksi yang di-rollback.
 
 Zona waktu `Asia/Jakarta` ditulis di fungsi 016 karena satu-satunya tenant ada di Bandung.
 Kalau ada tenant di zona lain, pindahkan zona ke kolom `tenants`.
