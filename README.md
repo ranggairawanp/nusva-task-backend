@@ -40,6 +40,7 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 | `016_shifts_routines_and_handover.sql` | Tugas rutin per shift dan serah terima: tabel `shifts` dan `shift_handovers`, `recurring_templates` dihidupkan (title jsonb, `days_of_week` ISO 1-7 menggantikan `rrule`, shift, penanggung jawab, checklist), kolom `shift_id`/`occurrence_date` di `work_items` dengan unique index (template_id, occurrence_date). RPC `generate_routine_work` (idempoten, membuat instance hari ini, rentang kemarin sampai besok), `create_routine_template`, `set_routine_template_active`, `submit_shift_handover`. Zona waktu Asia/Jakarta |
 | `017_seed_outlet_dago_shifts_and_routines.sql` | Seed Outlet Dago: shift Pagi 07.00-15.00 dan Sore 15.00-23.00, lima template rutin, satu catatan serah terima dari shift sore kemarin |
 | `018_notification_reads.sql` | Status dibaca notifikasi per karyawan, sinkron antarperangkat: tabel `notification_reads` (kunci notifikasi dari frontend, tanpa isi notifikasi), policy SELECT hanya milik sendiri, RPC `mark_notifications_read(text[])` (maks. 200 kunci per panggilan, duplikat dan kunci kosong diabaikan) |
+| `019_priority_checkins.sql` | Weekly Check-in Prioritas Utama: tabel `priority_checkins` (satu baris per prioritas per minggu, `week_start` Senin Asia/Jakarta, angka hasil, keyakinan ON_TRACK/WATCH/OFF_TRACK, catatan maks. 500 karakter, penginput), policy SELECT seluas tenant, RPC `submit_priority_checkin` (manajer untuk tim sendiri, eksekutif/HC seluruh tenant; isian ulang di minggu yang sama memperbarui baris; sekaligus mengisi `business_outcomes.current_value/reported_by/reported_at` dan menurunkan `priorities.status`, ACHIEVED kalau target terlampaui) |
 
 **Status 016 dan 017:** sudah diuji dengan memutar ulang migration 001 sampai 017 di
 Postgres 16 lokal (dengan stub `auth.users`/`auth.uid()`), termasuk uji RPC dan RLS per
@@ -60,6 +61,13 @@ lebih tua dari 60 hari: perintah DELETE di dalam fungsi membuat `apply_migration
 konfirmasi statement destruktif sampai timeout. Pembersihan menyusul sebagai tugas terjadwal.
 Frontend tetap mendeteksi sendiri: kalau `notification_reads` tidak ada, status dibaca disimpan
 lokal per perangkat.
+
+**Status 019:** diuji dengan memutar ulang 001 sampai 019 di Postgres 16 lokal: karyawan ditolak,
+manajer bisa check-in dan isian kedua di minggu yang sama memperbarui baris yang ada, keyakinan
+tidak valid ditolak, eksekutif bisa, status ACHIEVED terpasang saat target terlampaui, insert
+langsung dan anon ditolak. **Sudah diterapkan ke project Supabase aktif** dan diuji ulang di sana
+(sesi manajer dan Rina dalam transaksi yang di-rollback). Frontend mendeteksi sendiri: kalau
+`priority_checkins` tidak ada, Progres tetap live dan bagian Weekly Check-in disembunyikan.
 
 Zona waktu `Asia/Jakarta` ditulis di fungsi 016 karena satu-satunya tenant ada di Bandung.
 Kalau ada tenant di zona lain, pindahkan zona ke kolom `tenants`.
