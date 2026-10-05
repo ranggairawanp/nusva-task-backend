@@ -39,7 +39,7 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 | `015_company_profile_and_worker_write_policies.sql` | Policy UPDATE untuk tenants/organizations/legal_entities/business_units, UPDATE+INSERT untuk teams/positions, dan UPDATE untuk workers, supaya profil perusahaan tidak lagi cuma bisa dibaca. Manager terbatas ke tim sendiri; tenant-wide dan perubahan role worker khusus executive/hc_admin |
 | `016_shifts_routines_and_handover.sql` | Tugas rutin per shift dan serah terima: tabel `shifts` dan `shift_handovers`, `recurring_templates` dihidupkan (title jsonb, `days_of_week` ISO 1-7 menggantikan `rrule`, shift, penanggung jawab, checklist), kolom `shift_id`/`occurrence_date` di `work_items` dengan unique index (template_id, occurrence_date). RPC `generate_routine_work` (idempoten, membuat instance hari ini, rentang kemarin sampai besok), `create_routine_template`, `set_routine_template_active`, `submit_shift_handover`. Zona waktu Asia/Jakarta |
 | `017_seed_outlet_dago_shifts_and_routines.sql` | Seed Outlet Dago: shift Pagi 07.00-15.00 dan Sore 15.00-23.00, lima template rutin, satu catatan serah terima dari shift sore kemarin |
-| `018_notification_reads.sql` | Status dibaca notifikasi per karyawan, sinkron antarperangkat: tabel `notification_reads` (kunci notifikasi dari frontend, tanpa isi notifikasi), policy SELECT hanya milik sendiri, RPC `mark_notifications_read(text[])` (maks. 200 kunci per panggilan, menghapus baris pemanggil yang lebih tua dari 60 hari) |
+| `018_notification_reads.sql` | Status dibaca notifikasi per karyawan, sinkron antarperangkat: tabel `notification_reads` (kunci notifikasi dari frontend, tanpa isi notifikasi), policy SELECT hanya milik sendiri, RPC `mark_notifications_read(text[])` (maks. 200 kunci per panggilan, duplikat dan kunci kosong diabaikan) |
 
 **Status 016 dan 017:** sudah diuji dengan memutar ulang migration 001 sampai 017 di
 Postgres 16 lokal (dengan stub `auth.users`/`auth.uid()`), termasuk uji RPC dan RLS per
@@ -54,9 +54,12 @@ deploy frontend dan backend tidak saling bergantung.
 **Status 018:** diuji dengan memutar ulang 001 sampai 018 di Postgres 16 lokal: karyawan
 hanya melihat baris sendiri, duplikat dan kunci kosong diabaikan, lebih dari 200 kunci ditolak,
 anon tidak bisa memanggil RPC, insert langsung ditolak RLS meski role punya hak INSERT seperti
-default Supabase, baris lebih tua dari 60 hari terhapus. **Belum diterapkan ke project Supabase
-aktif.** Frontend mendeteksi sendiri: kalau `notification_reads` belum ada, status dibaca tetap
-disimpan lokal per perangkat.
+default Supabase. **Sudah diterapkan ke project Supabase aktif** dan diuji ulang di sana dengan
+sesi Rina dalam transaksi yang di-rollback. Versi yang diterapkan tidak memuat pembersihan baris
+lebih tua dari 60 hari: perintah DELETE di dalam fungsi membuat `apply_migration` tertahan
+konfirmasi statement destruktif sampai timeout. Pembersihan menyusul sebagai tugas terjadwal.
+Frontend tetap mendeteksi sendiri: kalau `notification_reads` tidak ada, status dibaca disimpan
+lokal per perangkat.
 
 Zona waktu `Asia/Jakarta` ditulis di fungsi 016 karena satu-satunya tenant ada di Bandung.
 Kalau ada tenant di zona lain, pindahkan zona ke kolom `tenants`.

@@ -13,9 +13,11 @@
 --    mark_notifications_read dengan identitas pemanggil, pola yang sama dengan
 --    RPC lain di repo ini; tidak ada policy INSERT/UPDATE/DELETE untuk client.
 -- 4. Tidak memakai audit trigger: status dibaca bukan data bisnis dan akan
---    membanjiri audit_log. Baris lebih tua dari 60 hari dihapus oleh RPC yang
---    sama (dibatasi ke pemanggil), jadi tabel tidak tumbuh tanpa batas dan
---    tidak butuh pg_cron.
+--    membanjiri audit_log. Tidak ada pembersihan otomatis di RPC: perintah
+--    DELETE di dalam fungsi membuat apply_migration tertahan konfirmasi
+--    statement destruktif. Volumenya kecil (beberapa kunci per karyawan per
+--    hari) dan frontend hanya membaca 500 kunci terbaru; pembersihan baris
+--    lama menyusul sebagai tugas terjadwal terpisah.
 
 create table notification_reads (
   tenant_id uuid not null references tenants(id),
@@ -62,9 +64,6 @@ begin
   where k <> '' and char_length(k) <= 300
   on conflict (worker_id, notif_key) do nothing;
   get diagnostics v_count = row_count;
-
-  delete from notification_reads
-  where worker_id = v_actor and read_at < now() - interval '60 days';
 
   return v_count;
 end;
