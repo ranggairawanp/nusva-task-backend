@@ -6,7 +6,7 @@ Management. Repo ini terpisah dari
 tetap menjadi prototipe frontend statis sesuai CLAUDE.md di repo itu.
 
 Dokumen desain lengkap (model tenant, otorisasi, ERD, keputusan D-1/D-2/D-3):
-lihat dokumen "Nusva People — Phase 1 Domain Foundation" yang dibagikan terpisah.
+lihat dokumen "Nusva People: Phase 1 Domain Foundation" yang dibagikan terpisah.
 
 ## Project Supabase
 
