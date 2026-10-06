@@ -6,7 +6,7 @@ Management. Repo ini terpisah dari
 tetap menjadi prototipe frontend statis sesuai CLAUDE.md di repo itu.
 
 Dokumen desain lengkap (model tenant, otorisasi, ERD, keputusan D-1/D-2/D-3):
-lihat dokumen "Nusva People — Phase 1 Domain Foundation" yang dibagikan terpisah.
+lihat dokumen "Nusva People: Phase 1 Domain Foundation" yang dibagikan terpisah.
 
 ## Project Supabase
 
@@ -48,6 +48,8 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 | `024_reanchor_dago_demo_tasks.sql` | Perapian data demo sekali jalan, seperti 012: deadline 10 tugas seed Outlet Dago digeser relatif dari tanggal migration diterapkan (tiga hari ini, tiga besok, satu kemarin, semua 17.00 WIB; tiga tugas DONE diberi `completed_at` hari ini sebelum deadline). Tugas rutin tidak disentuh |
 | `025_daily_demo_deadline_refresh.sql` | Job harian pg_cron `nusva-demo-deadlines` (22.01 UTC, 05.01 WIB) yang memanggil `refresh_demo_deadlines()`: deadline dan waktu selesai 23 tugas demo (Dago dan tiga outlet 023) digeser relatif ke hari ini sesuai tabel `demo_task_anchors`. Status tidak pernah diubah, tugas rutin tidak disentuh, fungsi tidak bisa dipanggil dari aplikasi. Tugas demo baru cukup ditambah barisnya di `demo_task_anchors`. Menghentikan: `select cron.unschedule('nusva-demo-deadlines');` |
 | `026_demo_checkin_refresh.sql` | Job harian yang sama (`refresh_demo_deadlines()`) kini juga menggeser 21 Weekly Check-in demo (tabel `demo_checkin_anchors`, posisi 1 sampai 3 minggu sebelum minggu berjalan) dan `reported_at` angka hasil bisnisnya. Minggu berjalan dibiarkan kosong untuk diisi manajer. Prioritas yang sudah punya check-in nyata tidak digeser lagi (data nyata menang, sekaligus mencegah bentrok unique). Pergeseran dua langkah lewat minggu penampung di satu transaksi |
+| `027_hc_overview.sql` | Dashboard HC live Tahap 1a. RPC `hc_overview(p_level)` (eksekutif/HC) mengembalikan angka agregat saja, tanpa nama atau baris per orang: kesiapan kalibrasi, sebaran rating, bukti dari tugas, perubahan saat kalibrasi, selisih antarpenilai (minimal 5 penilaian per penilai), ritme Weekly Check-in 4 minggu, tim dengan target, dan praktik per outlet. Kelompok di bawah `tenants.hc_min_group` (bawaan 10) ditahan, termasuk penahanan kedua kalau hanya satu kelompok kecil; tingkat outlet hanya terbuka di area yang semua outletnya lolos ambang. Setiap panggilan dicatat di `audit_log` (READ). Policy SELECT `audit_log` dipersempit ke hc_admin. Kolom `workers.is_demo` hanya bisa diubah dari migration (trigger `guard_worker_is_demo`) |
+| `028_seed_hc_demo_people.sql` | 39 karyawan demo (`is_demo`, email `demo.hcNN@demo.nusvapeople.local`, password acak tidak disimpan sehingga tidak bisa login) supaya tiap outlet berisi 12 karyawan. Penilaian siklus terbuka diisi (Cimahi longgar, Cirebon ketat, sebagian sudah dikalibrasi), riwayat tugas rutin Juli sampai Agustus sebagai bukti (di luar jendela tampilan aplikasi), tiga template "Checklist buka outlet" yang dijeda, dan Weekly Check-in minggu ke-4 untuk enam prioritas. Pembersihan manual: `supabase/scripts/cleanup_hc_demo_people.sql` |
 
 **Status 016 dan 017:** sudah diuji dengan memutar ulang migration 001 sampai 017 di
 Postgres 16 lokal (dengan stub `auth.users`/`auth.uid()`), termasuk uji RPC dan RLS per
