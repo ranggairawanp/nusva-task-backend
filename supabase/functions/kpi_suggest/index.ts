@@ -30,7 +30,7 @@ const MAX = { task: 200, target: 200, tech: 120, behavior: 120 };
 function clean(v: unknown, max: number): string {
   if (typeof v !== "string") return "";
   // Tanpa em dash di seluruh keluaran (aturan produk), spasi dirapikan, dipotong di batas.
-  const s = v.replace(/—/g, ",").replace(/\s+/g, " ").trim();
+  const s = v.replace(/\u2014/g, ",").replace(/\s+/g, " ").trim();
   return s.length > max ? s.slice(0, max).trim() : s;
 }
 
