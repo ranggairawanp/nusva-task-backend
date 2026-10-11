@@ -272,6 +272,7 @@ lewat client ber-anon-key biasa (RLS tetap berlaku di langkah itu).
 | Fungsi | Efek |
 | --- | --- |
 | `create_team_member` | Membuat akun Supabase Auth (`email` + kata sandi acak sekali pakai) dan baris `workers` baru dalam satu langkah. `manager` cuma boleh menambah role `employee` ke tim sendiri (team_id diturunkan otomatis dari worker pemanggil kalau tidak dikirim); `executive`/`hc_admin` boleh peran apa saja, tenant-wide. `tenant_id` selalu diturunkan dari worker pemanggil, tidak pernah dari input client. Kalau insert ke `workers` gagal setelah akun Auth terlanjur dibuat, akun itu dihapus lagi supaya tidak ada login yatim tanpa baris worker |
+| `kpi_suggest` | Saran isian kotak Pohon KPI dari model bahasa (Nexa, tingkat N2: draf yang bisa ditolak). Hanya `manager`. Yang dikirim ke model cuma nama posisi dan nama posisi atasannya (tanpa nama orang atau data perusahaan); tidak menulis apa pun ke database, manajer tetap memutuskan lewat tombol simpan. Keluaran dipotong ke panjang kolom, tanpa em dash, dan ditolak kalau membawa angka (`nexa_bad_output`, angka target keputusan manajer). Butuh rahasia `ANTHROPIC_API_KEY` (opsional `NEXA_MODEL`, bawaan `claude-haiku-5-5`); tanpa kunci menjawab 503 `nexa_not_configured` dan aplikasi memakai pustaka contoh. Belum ada batas pemakaian per akun; pembatasnya peran manajer dan satu panggilan per klik |
 
 Dipanggil lewat `supabase-js`:
 
