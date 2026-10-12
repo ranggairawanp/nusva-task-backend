@@ -124,11 +124,14 @@ Deno.serve(async (req) => {
   if (!res.ok) {
     // Hanya status dan jenis galat dari Anthropic (mis. authentication_error, not_found_error, invalid_request_error).
     let kind = "";
+    let msg = "";
     try {
       const eb = await res.json();
       kind = typeof eb?.error?.type === "string" ? eb.error.type : "";
+      // Pesan galat dari Anthropic (mis. saldo kredit habis, parameter tidak diterima model); tidak memuat kunci.
+      msg = typeof eb?.error?.message === "string" ? eb.error.message.replace(/\s+/g, " ").slice(0, 200) : "";
     } catch { /* abaikan */ }
-    console.error("kpi_suggest: Anthropic menolak", res.status, kind, "model", model);
+    console.error("kpi_suggest: Anthropic menolak", res.status, kind, "model", model, "pesan:", msg);
     return json({ error: "nexa_unavailable" }, 502);
   }
 
