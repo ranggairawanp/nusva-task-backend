@@ -110,7 +110,6 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model,
         max_tokens: 500,
-        temperature: 0.3,
         system,
         messages: [{ role: "user", content: user }],
       }),
