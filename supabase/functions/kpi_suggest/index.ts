@@ -9,6 +9,8 @@
 //
 // Rahasia yang dibutuhkan: ANTHROPIC_API_KEY. Opsional: NEXA_MODEL (bawaan claude-haiku-5-5).
 // Tanpa kunci, fungsi menjawab 503 {error:"nexa_not_configured"} dan layar memakai pustaka contoh.
+// Kalau Anthropic menolak, status dan jenis galatnya dicatat di log fungsi (tanpa kunci dan tanpa isi
+// permintaan), supaya penyebabnya bisa dibaca pemilik proyek; ke browser tetap hanya nexa_unavailable.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const CORS_HEADERS = {
@@ -113,12 +115,22 @@ Deno.serve(async (req) => {
         messages: [{ role: "user", content: user }],
       }),
     });
-  } catch {
+  } catch (e) {
+    console.error("kpi_suggest: fetch ke Anthropic gagal", (e as Error)?.name ?? "error");
     return json({ error: "nexa_unavailable" }, 502);
   } finally {
     clearTimeout(timer);
   }
-  if (!res.ok) return json({ error: "nexa_unavailable" }, 502);
+  if (!res.ok) {
+    // Hanya status dan jenis galat dari Anthropic (mis. authentication_error, not_found_error, invalid_request_error).
+    let kind = "";
+    try {
+      const eb = await res.json();
+      kind = typeof eb?.error?.type === "string" ? eb.error.type : "";
+    } catch { /* abaikan */ }
+    console.error("kpi_suggest: Anthropic menolak", res.status, kind, "model", model);
+    return json({ error: "nexa_unavailable" }, 502);
+  }
 
   let text = "";
   try {
@@ -132,6 +144,7 @@ Deno.serve(async (req) => {
     const m = text.match(/\{[\s\S]*\}/);
     parsed = JSON.parse(m ? m[0] : text);
   } catch {
+    console.error("kpi_suggest: keluaran model bukan JSON");
     return json({ error: "nexa_bad_output" }, 502);
   }
 
@@ -144,7 +157,10 @@ Deno.serve(async (req) => {
   // Posisi yang tidak dikenal: jawab kosong, layar menulis "Belum ada saran".
   if (!out.task && !out.target && !out.tech && !out.behavior) return json({ suggestion: null });
   // Angka target keputusan manajer: jawaban yang membawa angka ditolak, bukan dipoles.
-  if (/\d/.test(out.target) || /\d/.test(out.task)) return json({ error: "nexa_bad_output" }, 502);
+  if (/\d/.test(out.target) || /\d/.test(out.task)) {
+    console.error("kpi_suggest: keluaran membawa angka, ditolak");
+    return json({ error: "nexa_bad_output" }, 502);
+  }
 
   return json({ suggestion: out, model });
 });
