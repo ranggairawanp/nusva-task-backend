@@ -70,6 +70,7 @@ supabase/migrations/   Migration SQL, urut sesuai penerapan ke database
 | `046_worker_deactivation.sql` | Menonaktifkan karyawan yang keluar dengan pengalihan tugas (WM-BR-014). `workers` mendapat `deactivated_at`, `deactivated_by`, dan `deactivation_note` (catatan operasional; jenis dan tanggal keluar tetap di `worker_employment` milik HC). `current_tenant_id()`, `current_worker_id()`, dan `current_worker_role()` hanya mengenali pekerja aktif, jadi akun nonaktif tidak bisa membaca atau menulis apa pun walau sesi lamanya masih ada. RPC `deactivate_worker()` (eksekutif dan HC, bukan diri sendiri) mengalihkan semua tugas yang belum selesai dan semua template rutin ke satu orang aktif di tim yang sama (wajib kalau ada yang dialihkan) lalu menonaktifkan; `reactivate_worker()` mengaktifkan lagi tanpa mengembalikan tugas. Trigger menolak tugas aktif dan template rutin yang ditugaskan ke pekerja nonaktif. Perubahan `workers` kini tercatat di audit. **Sudah diterapkan ke project Supabase aktif** (12 Oktober 2026) setelah diuji dengan transaksi yang dibatalkan: manajer ditolak, tanpa tujuan pengalihan, tujuan beda tim, tujuan diri sendiri, HC menonaktifkan diri sendiri, pengalihan 11 tugas dan 1 template, nonaktif dua kali, sesi akun nonaktif tidak membaca apa pun dan RPC menolak, tugas baru dan template ke pekerja nonaktif ditolak, aktif lagi, dan audit |
 | `047_work_item_links.sql` | Menautkan tugas ke inisiatif dan ke komitmen mingguan. Kolom `work_items.initiative_id` dan `commitment_id` (sejak 002) kini hanya berubah lewat RPC (trigger `guard_work_item_links`, juga saat INSERT). `set_work_item_commitment()`: hanya pemilik komitmen, hanya tugas miliknya sendiri, komitmen minggu ini atau minggu lalu, paling banyak 10 tugas, tugas selesai boleh. `set_work_item_initiative()`: eksekutif, HC, PIC, atau sponsor inisiatif; tim tugas harus di cakupan outlet inisiatif (kalau ada), paling banyak 50 tugas. Tugas yang sudah tertaut ke komitmen atau inisiatif lain harus dilepas dulu; null melepas. Tautan hanya acuan: progres inisiatif tetap dari milestone dan hasil komitmen tetap diputuskan pemiliknya. Komitmen atau inisiatif yang diarsipkan, dan outlet yang dikeluarkan dari cakupan, melepas tautannya otomatis. **Sudah diterapkan ke project Supabase aktif** (13 Oktober 2026) setelah diuji dengan transaksi yang dibatalkan: tautkan dan lepas oleh pemilik, tugas orang lain, manajer, tulis langsung ditolak (UPDATE dan INSERT), komitmen lain, dua minggu lalu, HC, PIC, sponsor lintas outlet, karyawan tanpa hak (termasuk inisiatif tanpa sponsor), tim di luar cakupan, ganti cakupan, arsip, dan audit |
 | `048_checklist_from_nexa.sql` | Menambah langkah checklist ke tugas yang sudah ada, termasuk dari saran Nexa. `checklist_items.ai_assisted` menandai langkah yang berasal dari saran Nexa yang dipilih manusia; diisi saat dibuat dan tidak bisa diubah (trigger `guard_checklist_ai`). RPC `add_checklist_items(p_work_item_id, p_items, p_ai)`: hak sama dengan mengubah tugas (`can_manage_work_item`); ditolak untuk tugas selesai, dibatalkan, menunggu persetujuan, dan tugas rutin (checklist rutin dari template); langkah kosong diabaikan, 1 sampai 12 per panggilan, 120 karakter, paling banyak 20 langkah per tugas, ditaruh di akhir dan belum dicentang. Judul ditulis `{id, en}` dengan teks yang sama. **Sudah diterapkan ke project Supabase aktif** (13 Oktober 2026) setelah diuji dengan transaksi yang dibatalkan: PIC, manajer tim, HC, karyawan lain, outlet lain, tugas selesai, tugas rutin, menunggu persetujuan, langkah kosong, lebih dari 12, terlalu panjang, lebih dari 20 per tugas, ubah penanda langsung ditolak, dan audit |
+| `049_revoke_trigger_functions.sql` | Fungsi trigger tidak lagi terbuka lewat API: EXECUTE dicabut dari PUBLIC, anon, dan authenticated untuk semua fungsi trigger di skema public (18 fungsi, termasuk `add_worker_to_open_cycles` dan `create_audit_follow_ups` yang SECURITY DEFINER dan sebelumnya bisa dipanggil anon menurut linter keamanan Supabase). Trigger tetap jalan karena hak EXECUTE fungsi trigger hanya diperiksa saat CREATE TRIGGER. Fungsi pembantu policy RLS (`current_worker_id` dan sejenisnya) sengaja tidak dicabut. **Sudah diterapkan ke project Supabase aktif** (13 Oktober 2026) setelah diuji dengan transaksi yang dibatalkan: ubah status, ubah langsung, centang checklist, komentar, dan selesaikan tugas sebagai Rina tetap memicu trigger (versi naik, pengubah tercatat, audit tercatat, penjaga kolom tetap menolak), dan panggilan langsung ke fungsi trigger ditolak |
 
 **Status 016 dan 017:** sudah diuji dengan memutar ulang migration 001 sampai 017 di
 Postgres 16 lokal (dengan stub `auth.users`/`auth.uid()`), termasuk uji RPC dan RLS per
@@ -130,7 +131,7 @@ diselesaikan, manajer Dago tetap bisa bekerja di timnya, `executive_overview` di
 dan mengembalikan 4 tim untuk eksekutif. **Sudah diterapkan ke project Supabase aktif** dan diuji
 ulang di sana dengan sesi eksekutif dalam transaksi yang di-rollback. Akun demo baru:
 manajer.cimahi, andi, wulan, manajer.buahbatu, fajar, nina, manajer.cirebon, yusuf, lestari
-(semua `@demo.nusvapeople.local`, password sama dengan akun demo lain).
+(semua `@demo.nusvapeople.local`, password sama dengan akun demo lain; lihat "Password akun demo" di bawah).
 
 Zona waktu `Asia/Jakarta` ditulis di fungsi 016 karena satu-satunya tenant ada di Bandung.
 Kalau ada tenant di zona lain, pindahkan zona ke kolom `tenants`.
@@ -180,6 +181,14 @@ supabase db push
   bukan cuma dibaca. Edge Function `create_team_member` menambah anggota tim
   baru (akun login sungguhan + baris worker) tanpa perlu akses dashboard
   Supabase
+
+## Password akun demo
+
+Repo ini publik. Migration 009, 013, dan 023 masih memuat password seed lama sebagai riwayat, tapi password itu **sudah
+diganti 13 Oktober 2026 dan tidak berlaku lagi** untuk 15 akun demo yang bisa login. Password yang berlaku dibagikan pemilik
+produk lewat jalur pribadi dan tidak ditulis di repo mana pun, termasuk di layar login aplikasi. Untuk menggantinya lagi,
+pakai `supabase/scripts/rotate_demo_password.sql`: hash bcrypt dibuat di komputer sendiri, jadi teks password tidak pernah
+masuk ke log query database. Kalau database dibangun ulang dari migration, jalankan skrip itu sesudahnya.
 
 ## API
 
