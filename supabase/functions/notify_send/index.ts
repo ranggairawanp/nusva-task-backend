@@ -127,13 +127,13 @@ function render(rows: Row[], appUrl: string) {
   const name = (rows[0].full_name || "").trim();
   const lines = items.map((i) => i.l!.line);
   const text = [...(name ? [x.hello(name), ""] : []), ...lines.map((l) => `- ${l}`), "", `${x.open}: ${link}`, "", x.footer].join("\n");
-  const html = `<!doctype html><html lang="${lang}"><body style="margin:0;padding:24px;background:#F3F5F6;font-family:Inter,Segoe UI,Arial,sans-serif;color:#0F2530">
-<div style="max-width:560px;margin:0 auto;background:#FFFFFF;border-radius:16px;padding:24px">
-<p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#5A6B73">Nusva Work</p>
-${name ? `<p style="margin:0 0 16px;font-size:15px">${esc(x.hello(name))}</p>` : ""}
-<ul style="margin:0 0 20px;padding-left:20px;font-size:15px;line-height:1.5">${lines.map((l) => `<li style="margin:0 0 8px">${esc(l)}</li>`).join("")}</ul>
+  const html = `<!doctype html><html lang="${lang}"><body style="margin:0;padding:24px;background:#FFFFFF;font-family:'Plus Jakarta Sans',-apple-system,'Segoe UI',Roboto,sans-serif;font-weight:400;color:#1D1D1F">
+<div style="max-width:560px;margin:0 auto;background:#FFFFFF;border:1px solid #DCE2E5;border-radius:16px;padding:24px">
+<p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#6B6B70">Nusva Work</p>
+${name ? `<p style="margin:0 0 16px;font-size:14px;line-height:1.5">${esc(x.hello(name))}</p>` : ""}
+<ul style="margin:0 0 20px;padding-left:20px;font-size:14px;line-height:1.5">${lines.map((l) => `<li style="margin:0 0 8px">${esc(l)}</li>`).join("")}</ul>
 <a href="${esc(link)}" style="display:inline-block;padding:10px 16px;border-radius:6px;background:#0D7883;color:#FFFFFF;font-size:14px;font-weight:600;text-decoration:none">${esc(x.open)}</a>
-<p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#5A6B73">${esc(x.footer)}</p>
+<p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#6B6B70">${esc(x.footer)}</p>
 </div></body></html>`;
   return { subject, text, html, ids: items.map((i) => i.r.id) };
 }
